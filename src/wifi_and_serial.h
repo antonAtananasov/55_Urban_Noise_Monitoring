@@ -330,15 +330,7 @@ void processCommandFromStr(String str)
         char buff[5];
         str.toCharArray(buff, 5);
         int lines = atoi(buff);
-        if (lines < 0)
-        {
-            fileIndex = SdFile(MEASUREMENTS_FILE, FILE_READ).fileSize();
-        }
-        else
-        {
-            fileIndex = 0;
-            readFromSD(max(lines, 1), true);
-        }
+        seekSDLines(lines);
         sendToServer();
         Serial.println();
     }
@@ -386,4 +378,16 @@ void geoloc(String str, float &coord)
     coord = atof(buff);
     sendToServer();
     Serial.println();
+}
+void seekSDLines(int lines)
+{
+    if (lines < 0)
+    {
+        fileIndex = SdFile(MEASUREMENTS_FILE, FILE_READ).fileSize();
+    }
+    else
+    {
+        fileIndex = 0;
+        readFromSD(max(lines, 1), true);
+    }
 }

@@ -9,7 +9,7 @@
 #define MEASUREMENTS_FILE "measurements.csv"                     // name of the file to store measurements (fft levels, time, location)
 #define NUMBER_OF_SAMPLES 16                                     // amount of samples to take for FFT (eats up SRAM). Has to be a power of 2.
 #define PRESCALE_MULTIPLIER 64                                   // lower prescale = higher sample rate. Supported values: 1,16,64,128. Recommended: 64
-#define MEASUREMENT_DELAY 300                                    // amount of seconds to wait between measurements. 0 = no automatic measurements
+#define MEASUREMENT_DELAY 30                                    // amount of seconds to wait between measurements. 0 = no automatic measurements
 #define WIFI_CMD "AT+CWJAP=\"SSID\",\"PWD\""       // ESP-AT command to connect to wifi access point: AT+CWJAP=\"<SSID>\",\"<PWD>\""
 #define SERVER_CMD "AT+CIPSTART=\"TCP\",\"IP\",12601" // ESP-AT command to a server running TCP socket "AT+CIPSTART=\"TCP\",\"<IPv4>\",<PORT>"
 /*
@@ -94,10 +94,12 @@ void setup()
         delay(5000);
     }
     // Serial.println((__FlashStringHelper *)pgm_read_word(&serialmsg[4]));
+    seekSDLines(-1);//go to end of file
     sendToServer("[READY]");
 
     Serial.println();
     digitalWrite(LED_BUILTIN, HIGH);
+    
 }
 
 void loop()
@@ -105,18 +107,17 @@ void loop()
     readHwSerial();
     readSwSerial();
 
-    if (millis() - lastMeasurement > ((unsigned long)MEASUREMENT_DELAY) * 1000 || lastMeasurement == 0)
+    if (MEASUREMENT_DELAY!=0 &&( millis() - lastMeasurement > ((unsigned long)MEASUREMENT_DELAY) * 1000 || lastMeasurement == 0))
     {
-        // /////////////////////////////////
         lastMeasurement = millis();
-        Serial.println(RTC.now().timestamp());
+        // Serial.println(RTC.now().timestamp());
         readSamples();
         computeFFT();
         writeToSD();
-        processCommandFromStr("tt");
+        // processCommandFromStr("tt");
+        processCommandFromStr("rd");
         // writeTelemetryToSD();
         // delay(((unsigned long)5) * 60 * 1000);
-        ///////////////////////////////////////
     }
 }
 

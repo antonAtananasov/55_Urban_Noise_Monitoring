@@ -37,6 +37,7 @@ void readSwSerial();
 void readHwSerial();
 void readFromSD(int lines,bool seekOnly=false);
 void geoloc(String str, float &coord);
+void seekSDLines(int lines);
 
 // boolean wlSerCommand(String cmd, String ack);
 // boolean echoFind(String keyword);
