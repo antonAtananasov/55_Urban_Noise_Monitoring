@@ -48,13 +48,17 @@ bool wlCommand(const __FlashStringHelper *cmd, String resp)
             }
             else
             {
-                Serial.print(F("E "));
-                Serial.println(respBuffer);
+                if (ENABLE_COMMAND_LOG_AT_SETUP && !setUp)
+                {
+                    Serial.print(F("E "));
+                    Serial.println(respBuffer);
+                }
                 respBuffer = "";
             }
         }
     }
-    Serial.println();
+    if (ENABLE_COMMAND_LOG_AT_SETUP && !setUp)
+        Serial.println();
     return successful;
 }
 /*
@@ -377,6 +381,7 @@ void geoloc(String str, float &coord)
     str.toCharArray(buff, 11);
     coord = atof(buff);
     sendToServer();
+    // Serial.println(coord);
     Serial.println();
 }
 void seekSDLines(int lines)

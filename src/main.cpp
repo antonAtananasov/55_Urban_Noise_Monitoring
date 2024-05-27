@@ -4,14 +4,15 @@
  **/
 
 // user configuration and wiring:
-#define SERIAL_BAUD 115200                                       // baud rate for serial communication
-#define SD_SPI_MHZ 1                                             // the SPI clock speed (depends on the speed of the SD card)
-#define MEASUREMENTS_FILE "measurements.csv"                     // name of the file to store measurements (fft levels, time, location)
-#define NUMBER_OF_SAMPLES 16                                     // amount of samples to take for FFT (eats up SRAM). Has to be a power of 2.
-#define PRESCALE_MULTIPLIER 64                                   // lower prescale = higher sample rate. Supported values: 1,16,64,128. Recommended: 64
-#define MEASUREMENT_DELAY 30                                    // amount of seconds to wait between measurements. 0 = no automatic measurements
-#define WIFI_CMD "AT+CWJAP=\"SSID\",\"PWD\""       // ESP-AT command to connect to wifi access point: AT+CWJAP=\"<SSID>\",\"<PWD>\""
+#define SERIAL_BAUD 115200                            // baud rate for serial communication
+#define SD_SPI_MHZ 1                                  // the SPI clock speed (depends on the speed of the SD card)
+#define MEASUREMENTS_FILE "measurements.csv"          // name of the file to store measurements (fft levels, time, location)
+#define NUMBER_OF_SAMPLES 16                          // amount of samples to take for FFT (eats up SRAM). Has to be a power of 2.
+#define PRESCALE_MULTIPLIER 64                        // lower prescale = higher sample rate. Supported values: 1,16,64,128. Recommended: 64
+#define MEASUREMENT_DELAY 30                          // amount of seconds to wait between measurements. 0 = no automatic measurements
+#define WIFI_CMD "AT+CWJAP=\"SSID\",\"PWD\""          // ESP-AT command to connect to wifi access point: AT+CWJAP=\"<SSID>\",\"<PWD>\""
 #define SERVER_CMD "AT+CIPSTART=\"TCP\",\"IP\",12601" // ESP-AT command to a server running TCP socket "AT+CIPSTART=\"TCP\",\"<IPv4>\",<PORT>"
+#define ENABLE_COMMAND_LOG_AT_SETUP false             // log output from ESP-AT commands to serial (AT command echos can reveal the wifi credentials)
 /*
 PRESCALE_MULTIPLIER 1 = Sample rate 125 kHz
 PRESCALE_MULTIPLIER 16 = Sample rate 76800 Hz
@@ -45,6 +46,7 @@ String hwSerBuffer = "";
 float latitude = 43.216667, longitude = 27.916667;
 uint32_t fileIndex = 0;
 unsigned long lastMeasurement = 0;
+bool setUp = false;
 
 ArduinoFFT<float> FFT = ArduinoFFT<float>(vReal, vImag, samples, samplingFrequency);
 RTC_DS1307 RTC;
@@ -94,12 +96,12 @@ void setup()
         delay(5000);
     }
     // Serial.println((__FlashStringHelper *)pgm_read_word(&serialmsg[4]));
-    seekSDLines(-1);//go to end of file
+    seekSDLines(-1); // go to end of file
     sendToServer("[READY]");
 
     Serial.println();
     digitalWrite(LED_BUILTIN, HIGH);
-    
+    setUp = true;
 }
 
 void loop()
@@ -107,7 +109,7 @@ void loop()
     readHwSerial();
     readSwSerial();
 
-    if (MEASUREMENT_DELAY!=0 &&( millis() - lastMeasurement > ((unsigned long)MEASUREMENT_DELAY) * 1000 || lastMeasurement == 0))
+    if (MEASUREMENT_DELAY != 0 && (millis() - lastMeasurement > ((unsigned long)MEASUREMENT_DELAY) * 1000 || lastMeasurement == 0))
     {
         lastMeasurement = millis();
         // Serial.println(RTC.now().timestamp());
@@ -383,6 +385,7 @@ void initPins(uint8_t prescaleMultiplier)
     Serial.println();
 
     // pinMode(MIC_DIGITAL_OUT_PIN, INPUT);
+    // analogReference(EXTERNAL);
     pinMode(LED_BUILTIN, INPUT);
     pinMode(MIC_ANALOG_OUT_PIN, INPUT);
     pinMode(BATTERY_MONITOR_PIN, INPUT);
@@ -421,16 +424,19 @@ void writeToSD()
     // location
     {
         char buffer[9];
-        int intLat = (int)latitude;
-        sprintf(buffer, "%d.%d", intLat, (int)((latitude - intLat) * 10000));
+        // int intLat = (int)latitude;
+        // sprintf(buffer, "%d.%d", intLat, (int)((latitude - intLat) * 10000));
+        dtostrf(latitude, 8, 4, buffer);
         // Serial.println(buffer);
         sdFile.write(buffer);
     }
     sdFile.write(' ');
     {
         char buffer[9];
-        int intLon = (int)longitude;
-        sprintf(buffer, "%d.%d", intLon, (int)((longitude - intLon) * 10000));
+        // int intLon = (int)longitude;
+        // sprintf(buffer, "%d.%d", intLon, (int)((longitude - intLon) * 10000));
+        dtostrf(longitude, 8, 4, buffer);
+
         // Serial.println(buffer);
         sdFile.write(buffer);
     }
@@ -438,9 +444,10 @@ void writeToSD()
     // battery voltage
     {
         char buffer[5];
-        float voltage = vbatt();
-        int intvoltage = (int)voltage;
-        sprintf(buffer, "%d.%d", intvoltage, (int)((voltage - intvoltage) * 100));
+        // float voltage = vbatt();
+        // int intvoltage = (int)voltage;
+        // sprintf(buffer, "%d.%2d", intvoltage, (int)((voltage - intvoltage) * 100));
+        dtostrf(vbatt(), 4, 2, buffer);
         // Serial.println(buffer);
         sdFile.write(buffer);
     }
@@ -495,7 +502,7 @@ void writeTelemetryToSD()
 */
 float vbatt()
 {
-    return analogRead(BATTERY_MONITOR_PIN) * (5.0 / 1023.0) + .2;
+    return analogRead(BATTERY_MONITOR_PIN) * (5.0 / 1023.0) - .37;
 }
 #include <wifi_and_serial.h>
 
@@ -504,13 +511,13 @@ void readFromSD(int lines, bool seekOnly)
     sdFile = SdFile(MEASUREMENTS_FILE, FILE_READ);
     if (!seekOnly)
         sdFile.seekSet(fileIndex); // go to last read end of line
-        else
+    else
         sdFile.seekSet(0); // go to last read end of line
     uint32_t len = sdFile.fileSize();
     String readBuffer = "";
     while (sdFile.curPosition() < len && fileIndex < len && lines > 0)
     {
-        if (sdFile.available()<0)
+        if (sdFile.available() < 0)
             return;
         char b = sdFile.read();
         if (b != '\n')
